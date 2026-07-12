@@ -1,0 +1,288 @@
+%% コンパイル方法: uplatex REPORT.tex を2回 → dvipdfmx REPORT.dvi
+%% （日本語のため pdflatex では通りません。Overleaf では Compiler を LaTeX、
+%%   Main document を uplatex に設定するか、latexmk を利用してください）
+\documentclass[uplatex,dvipdfmx,a4paper,11pt]{jsarticle}
+
+\usepackage[dvipdfmx]{graphicx}
+\usepackage[dvipdfmx]{xcolor}
+\usepackage[dvipdfmx,hidelinks]{hyperref}
+\usepackage{pxjahyper}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage{fancybox}
+
+% スクリーンショット貼付欄などを枠で囲むための簡易環境
+\newcommand{\shotbox}[1]{%
+  \begin{center}
+  \fbox{\begin{minipage}{0.92\linewidth}#1\end{minipage}}
+  \end{center}}
+
+\title{CI/CD レポート \\ \large 静的Webサービスの継続的デプロイ}
+\author{沼田 陽}
+\date{2026年7月12日}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+対象リポジトリ & \url{https://github.com/harukiti82/my-static-html-site} \\
+公開URL & \url{https://orange-stone-0cfe86d00.7.azurestaticapps.net} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{CI/CD とは}
+
+\textbf{CI/CD} は「継続的インテグレーション（Continuous Integration）／継続的デリバリー・デプロイ
+（Continuous Delivery / Deployment）」の略で、ソースコードの変更を\textbf{自動的にビルド・テスト・デプロイ}する
+仕組みを指す。
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+用語 & 意味 & 本レポートでの該当 \\
+\midrule
+CI & 変更を頻繁に統合し自動で検証する & \verb|git push| を契機に GitHub Actions が起動 \\
+CD & 検証を通った成果物を自動で本番へ反映 & Azure Static Web Apps へ自動アップロード \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+従来は「手元でファイルを作る $\rightarrow$ 手動で FTP アップロード」という流れだったが、
+CI/CD ではこれを自動化する。本サービスでは \textbf{\texttt{main} ブランチへ push した瞬間に、
+数十秒$\sim$1分で世界中に公開される}。
+
+\section{システム構成}
+
+静的な HTML / CSS のみで構成された Web サイトを、GitHub と Azure を連携させて自動公開している。
+
+\begin{verbatim}
+   [開発者 (ローカル)]
+          |
+          |  git push origin main
+          v
+   [GitHub リポジトリ (main ブランチ)]
+          |
+          |  push を検知してワークフローが起動
+          v
+   [GitHub Actions (CI/CD)]
+   azure/static-web-apps-deploy@v1
+          |
+          |  リポジトリ内のファイルをアップロード
+          v
+   [Azure Static Web Apps]
+   グローバル配信 / CDN
+          |
+          |  HTTPS
+          v
+   [エンドユーザー]
+\end{verbatim}
+
+\subsection*{使用技術}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+分類 & 技術 \\
+\midrule
+ソース管理 & Git / GitHub \\
+CI/CD 実行基盤 & GitHub Actions \\
+デプロイアクション & \verb|Azure/static-web-apps-deploy@v1| \\
+ホスティング & Azure Static Web Apps（無料プラン） \\
+コンテンツ & 静的 HTML（\texttt{index.html}）+ CSS（\texttt{style.css}） \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{CI/CD パイプラインの流れ}
+
+\begin{enumerate}
+  \item 開発者がローカルで \texttt{index.html} / \texttt{style.css} を編集する
+  \item \verb|git commit| して \verb|git push origin main| する
+  \item push を検知して\textbf{GitHub Actions のワークフローが自動起動}する
+  \item \verb|Azure/static-web-apps-deploy| アクションがリポジトリ内のファイルを Azure へアップロードする
+  \item Azure Static Web Apps がグローバル配信網に反映し、\textbf{約1分で公開URLに変更が反映}される
+\end{enumerate}
+
+プルリクエスト（PR）を作成した場合は、マージ前でも\textbf{プレビュー環境}が自動生成され、
+本番に影響を与えずに変更内容を確認できる。PR をクローズするとプレビュー環境は自動で破棄される。
+
+\section{デプロイ設定（ワークフロー定義）}
+
+CI/CD の挙動は \texttt{.github/workflows/azure-static-web-apps-orange-stone-0cfe86d00.yml} に
+定義されている（抜粋）。
+
+\begin{verbatim}
+name: Azure Static Web Apps CI/CD
+
+on:
+  push:
+    branches:
+      - main                       # main への push で本番デプロイ
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main                       # PR でプレビュー環境を生成 / 破棄
+
+jobs:
+  build_and_deploy_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3          # (1) ソースを取得
+      - name: Build And Deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_..._TOKEN_... }}
+          action: "upload"
+          app_location: "/"                # (2) 公開するソースの場所
+          output_location: "."             # (3) 成果物ディレクトリ
+\end{verbatim}
+
+\begin{itemize}
+  \item \verb|on:| \dots\ いつ動くか（トリガー）。ここでは \texttt{main} への push と PR。
+  \item \verb|secrets.AZURE_...TOKEN| \dots\ Azure が発行したデプロイ用トークン。GitHub の Secrets に
+        安全に保管され、コードには一切含まれない。
+  \item \verb|app_location| / \verb|output_location| \dots\ どのフォルダを公開するか。本サイトはビルド不要のため、
+        リポジトリ直下（\texttt{/}）をそのまま配信する。
+\end{itemize}
+
+\section{ディプロイ画面（GitHub Actions 実行履歴）}
+
+\texttt{main} へ push するたびに、GitHub の \textbf{Actions タブ}に実行結果が記録される。
+以下は \verb|gh run list| で取得した実際のデプロイ実行履歴である。
+
+\begin{center}
+\begin{tabular}{cllcc}
+\toprule
+状態 & ワークフロー & トリガー & 所要時間 & 実行日時(UTC) \\
+\midrule
+成功 & Azure Static Web Apps CI/CD & push & 1m05s & 2026-07-09 16:38 \\
+失敗 & Azure Static Web Apps CI/CD & push & 10m46s & 2026-07-09 16:38 \\
+成功 & Azure Static Web Apps CI/CD & push & 1m04s & 2026-07-08 01:41 \\
+成功 & Azure Static Web Apps CI/CD & push & 1m04s & 2026-07-08 01:13 \\
+失敗 & Azure Static Web Apps CI/CD & push & 43s   & 2026-07-08 01:10 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+デプロイ成功時、Actions のログ末尾には公開先URLが出力される（実際のログ）。
+
+\begin{verbatim}
+Deployment Complete :)
+Visit your site at: https://orange-stone-0cfe86d00.7.azurestaticapps.net
+\end{verbatim}
+
+\shotbox{\textbf{スクリーンショット貼付欄(1)（ディプロイ画面）}\\
+GitHub リポジトリの \textbf{Actions} タブを開き、上記の実行履歴が並んでいる画面を貼り付ける。\\
+URL: \url{https://github.com/harukiti82/my-static-html-site/actions}}
+
+\section{変更画面（コミット履歴と差分）}
+
+「いつ・誰が・何を変更したか」は Git のコミット履歴で追跡できる。以下は実際の履歴（\verb|git log|）。
+
+\begin{verbatim}
+bc38726 Merge branch 'main' of https://github.com/harukiti82/my-static-html-site
+7625825 沼田がしていますを追加
+80a8333 沼田を追加
+70c1af5 赤色に変更
+f94d58f テキストカラーを変更
+\end{verbatim}
+
+各コミットには具体的な変更差分（diff）が記録されている。例として2つのコミットの差分を示す。
+
+\begin{verbatim}
+# コミット 70c1af5 「赤色に変更」
+diff --git a/style.css b/style.css
+ h1 {
+-  color: #00ffc3d4;    /* 変更前: 水色 */
++  color: #ff1d1dd4;    /* 変更後: 赤色 */
+ }
+
+# コミット 7625825 「沼田がしていますを追加」
+diff --git a/index.html b/index.html
+-  <p>GitHub Actions からデプロイしています。沼田</p>
++  <p>GitHub Actions からデプロイしています。沼田がしています</p>
+\end{verbatim}
+
+この差分が push された結果、CI/CD が自動起動して\textbf{そのまま公開URLへ反映}される。
+「文字色を赤に変える」という1行の変更が、手作業なしで本番サイトに届く点が CI/CD の効果である。
+
+\shotbox{\textbf{スクリーンショット貼付欄(2)（変更画面）}\\
+GitHub の \textbf{Commits} 画面、または特定コミットの差分（緑=追加・赤=削除がハイライトされた画面）を
+貼り付ける。\\
+URL: \url{https://github.com/harukiti82/my-static-html-site/commits/main}}
+
+\section{現在の公開URLと稼働確認}
+
+\textbf{公開URL:} \url{https://orange-stone-0cfe86d00.7.azurestaticapps.net}
+
+2026年7月12日 時点で稼働を確認済み（HTTP ステータス \texttt{200 OK}）。配信されている内容は以下の通りで、
+リポジトリの \texttt{index.html} と一致している。
+
+\begin{verbatim}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>My Static HTML Site</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Azure Static Web Apps Demo</h1>   <!-- 赤色(#ff1d1d)で表示 -->
+  <p>GitHub Actions からデプロイしています。沼田がしています</p>
+</body>
+</html>
+\end{verbatim}
+
+\shotbox{\textbf{スクリーンショット貼付欄(3)（現在のURL）}\\
+上記URLをブラウザで開き、アドレスバーのURLと「Azure Static Web Apps Demo」（赤字）が
+表示された画面を貼り付ける。}
+
+\begin{quote}
+\textbf{注意:} ドメインには \texttt{.7.} というリージョン識別子が含まれる。
+\texttt{.7.} を省いた \url{https://orange-stone-0cfe86d00.azurestaticapps.net} では
+Azure の 404 ページが表示されるため、上記の\textbf{完全なURL}でアクセスすること。
+\end{quote}
+
+\section{考察 --- 運用で気づいた課題と改善案}
+
+実際に運用してみたところ、\textbf{push のたびにワークフローが1回失敗している}ことが分かった
+（第5章の履歴の「失敗」）。
+
+\subsection*{原因}
+
+リポジトリ内に\textbf{デプロイ用のワークフローファイルが2つ}存在している。
+
+\begin{itemize}
+  \item \texttt{azure-static-web-apps.yaml}（初期に手動作成したもの）
+  \item \texttt{azure-static-web-apps-orange-stone-0cfe86d00.yml}（Azure が自動生成したもの）
+\end{itemize}
+
+両方が \texttt{main} への push で同時に起動し、\textbf{同じ Static Web App へ同時にデプロイしようとして衝突}する。
+失敗した側のログには次のように記録されていた。
+
+\begin{verbatim}
+Status: InProgress. Time: 581.8(s)
+Upload Timed Out. Unsure if deployment was successful or not.
+\end{verbatim}
+
+一方が先にデプロイを掴み、もう一方は待たされた末に\textbf{アップロードがタイムアウト}（約10分）して失敗している。
+
+\subsection*{改善案}
+
+不要になった \texttt{azure-static-web-apps.yaml} を\textbf{削除して1本化}すれば、
+衝突がなくなり、毎回のデプロイが安定して成功するようになる。
+CI/CD では「1つの成果物に対してデプロイ経路は1本」に保つことが重要だという学びが得られた。
+
+\section{まとめ}
+
+\begin{itemize}
+  \item \textbf{CI/CD} により、\verb|git push| するだけでビルド$\sim$公開までが自動化され、手作業のアップロードが不要になった。
+  \item \textbf{GitHub Actions + Azure Static Web Apps} の組み合わせで、静的サイトを無料かつ数十秒で世界公開できた。
+  \item \textbf{PR プレビュー環境}により、本番に影響を与えず変更を確認できる仕組みも備わっている。
+  \item 一方で、\textbf{ワークフローの重複}という運用上の落とし穴も体験し、「デプロイ経路の一本化」の重要性を学んだ。
+\end{itemize}
+
+\end{document}
