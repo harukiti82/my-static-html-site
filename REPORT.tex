@@ -2,6 +2,7 @@
 %% （日本語のため pdflatex 不可。Overleaf は Compiler=LaTeX / uplatex 設定）
 \documentclass[uplatex,dvipdfmx,a4paper,11pt]{jsarticle}
 
+\usepackage{amsmath}
 \usepackage[dvipdfmx]{graphicx}
 \usepackage[dvipdfmx,hidelinks]{hyperref}
 \usepackage{pxjahyper}
@@ -13,7 +14,7 @@
   \setlength{\fboxsep}{3pt}%
   \fbox{\begin{minipage}[c][#1][c]{0.9\linewidth}\centering\footnotesize\itshape #2\end{minipage}}}
 
-\title{CI/CD による静的サイトと動的 Web アプリの構築レポート}
+\title{GitHub Actions と Azure による Web サイトの継続的デプロイ}
 \author{学籍番号: 25G1104\\ 氏名: 沼田 陽}
 \date{2026 年 7 月 12 日}
 
@@ -21,81 +22,88 @@
 \maketitle
 
 \section{はじめに}
-本レポートでは，アプリケーションの更新時に自動でデプロイ作業が行われる仕組みである
-CI/CD（Continuous Integration と Continuous Delivery）を取り上げ，手動でのデプロイと自動デプロイを
-比較する．あわせて，今回構築した 2 つのサービス，すなわち GitHub Actions による自動デプロイで
-公開した\textbf{静的 Web サイト}（Azure Static Web Apps）と，サーバー側で処理を行う
-\textbf{動的 Web アプリ}（Azure App Service）を題材に，CI/CD と PaaS の利点をまとめる．
+本レポートは，講義で学んだ CI/CD（Continuous Integration / Continuous Delivery）を実際に用いて，
+Web サイトをクラウド上へ自動で公開する仕組みを構築し，その過程と結果を記録したものである．
+題材として，GitHub Actions と Azure Static Web Apps による\textbf{静的サイトの継続的デプロイ}を中心に扱い，
+さらに追加課題として Azure App Service 上に\textbf{動的な Web アプリ}を構築した内容を報告する．
 
-\section{CI/CD 導入前（手動でのデプロイ）}
-CI/CD が用いられていない場合，開発したファイルを開発者自身がサーバーへ配置して，はじめて
-ユーザーが利用できる状態になる．変更のたびに人手で同じ配置作業を繰り返す必要があり，次の課題がある．
-\begin{itemize}
-  \item \textbf{ヒューマンエラーの発生}：手作業で配置するため，操作ミスや手順の抜けが起こりやすい．
-  \item \textbf{手間と時間がかかる}：修正のたびにローカルから同じ内容を送り直す必要があり，
-        更新回数が増えるほど負担が大きくなる．
-\end{itemize}
+\section{CI/CD の仕組みとシステム構成}
+CI/CD とは，ソースコードの変更をきっかけに，ビルドから公開までの一連の作業を自動で行う仕組みである．
+本課題では，GitHub のリポジトリへ変更を反映（push）すると，GitHub Actions が自動的に起動し，
+Azure Static Web Apps へファイルを配置して公開する．全体の流れは次の通りである．
 
-\section{CI/CD 導入後（自動デプロイ）}
-CI/CD を導入すると，コードの変更をリポジトリへ反映するだけで，ビルドから公開までが自動で実行される．
-本課題では，ローカルで編集した HTML / CSS を GitHub の \texttt{main} ブランチへ push するだけで，
-GitHub Actions が起動し，Azure Static Web Apps へファイルが自動でアップロードされる仕組みを構築した．
-おおよそ 1 分で公開 URL に反映され，手動でのアップロードは不要となる．これにより，配置作業由来の
-ミスを防げる（\textbf{ヒューマンエラーの回避}）とともに，一度仕組みを作れば以降はサーバー配置を
-意識せず内容の改善に専念できる（\textbf{開発への集中}）．
+\begin{center}
+\small
+\texttt{[ローカルPC]} $\longrightarrow$ \texttt{[GitHub(main)]}
+$\longrightarrow$ \texttt{[GitHub Actions]} $\longrightarrow$ \texttt{[Azure Static Web Apps]}
+$\longrightarrow$ \texttt{[利用者]}
+\end{center}
 
-\section{今回構築したサービス}
-\subsection{静的 Web サイト（Azure Static Web Apps）}
-リポジトリ直下に \texttt{index.html} と \texttt{style.css} を置き，\texttt{.github/workflows/} に
-デプロイ用 YAML を配置した．\texttt{main} への push を契機に GitHub Actions が実行され，成功時には
-ログ末尾へ公開 URL が出力される（付録 図\ref{fig:deploy}）．実際に見出しの文字色を変更するなどの
-修正を push しただけで本番サイトへ即座に反映された（付録 図\ref{fig:change}，図\ref{fig:static}）．
-なお運用中，デプロイ用ワークフローが手動作成分と自動生成分の 2 本存在して衝突し，push のたびに一方が
-失敗していたため，経路を 1 本に整理する重要性も学んだ．
+\noindent
+この構成では，開発者は変更を push するだけでよく，サーバーへ手作業でファイルを送る必要がない．
+リポジトリには公開する \texttt{index.html}・\texttt{style.css} と，動作を定義する
+\texttt{.github/workflows/} 内の YAML を配置している．
 
-\subsection{動的 Web アプリ（Azure App Service，加点課題）}
-追加要件である「Web App Service（動的サイト）」の構築にも成功した．Node.js のフレームワークである
-\textbf{Express} を用い，単なる静的ページの配信ではなく，\textbf{リクエストのたびにサーバー側で内容を
-生成}するアプリを構築して Azure App Service（PaaS，無料 F プラン）へデプロイした．具体的には，
-\textbf{現在のサーバー時刻の表示}，メモリ上で数える\textbf{アクセスカウンタ}，フォーム入力を
-サーバー側で受け取って応答を返す\textbf{あいさつ機能}を実装した（付録 図\ref{fig:dynamic}）．
-無料枠のため，初回アクセス時はコールドスタートで表示に時間がかかる（重い）仕様となっている．
+\section{デプロイの自動実行}
+\texttt{main} ブランチへ push するたびに，GitHub の Actions タブでビルドとデプロイが自動実行される
+（付録 図\ref{fig:deploy}）．処理は 1 分ほどで完了し，成功するとログの末尾に公開先の URL が表示される．
+Pull Request を作成した場合には，マージ前に内容を確認するためのプレビュー環境も自動で用意される．
+実行結果は履歴として残るため，いつ・どのデプロイが成功／失敗したかを後から追跡できる点も利点である．
 
-\section{おわりに}
-本課題を通じて，手動でのデプロイと自動デプロイの双方を理解した．手作業でのデプロイはミスが
-起こりやすいが，GitHub Actions による CI/CD を用いることで push するだけで安全かつ短時間に公開できる．
-さらに，Azure App Service を用いれば，サーバー管理を意識せずに動的な Web アプリまで公開できることを，
-実際の構築を通して確認できた．
+\section{変更内容の管理}
+ソースコードの変更は Git のコミットとして記録され，「いつ・どこを・どのように変えたか」を差分として
+確認できる（付録 図\ref{fig:change}）．たとえば見出しの文字色を変更するコミットでは，該当する 1 行のみが
+変更点として色付きで示される．この変更を push すると，前節の仕組みによって自動で本番サイトへ反映される．
+少量の修正でも，人手の配置を挟まずに公開まで届くことが CI/CD の効果である．
 
-\section{付録}
-\subsection{URL}
-今回構築したサービスの公開 URL は以下の通りである（いずれも 2026 年 7 月 12 日 時点で稼働確認済み）．
+\section{公開サイトと動作確認}
+継続的デプロイによって公開されている静的サイトの URL は付録に示す通りで，2026 年 7 月 12 日 時点で
+正常に表示される（付録 図\ref{fig:static}）．push した変更が実際にこの URL へ反映されることを確認した．
+
+\section{動的 Web アプリの構築（追加課題）}
+追加課題として，Azure App Service 上に動的な Web アプリを構築した．静的サイトが同じ HTML を返すだけで
+あるのに対し，こちらは Node.js のフレームワークである Express を用い，\textbf{リクエストのたびに
+サーバー側で内容を生成}する（付録 図\ref{fig:dynamic}）．具体的には，アクセス時点のサーバー時刻，
+メモリ上で加算されるアクセス回数，フォームに入力した名前を受け取って応答を返す機能を実装した．
+App Service は PaaS であり，サーバーの構築や保守を意識せずにアプリを公開できる．なお無料プランのため，
+初回アクセス時はコールドスタートにより表示までに時間がかかる．
+
+\section{考察とまとめ}
+本課題を通じて，push を起点にビルドから公開までが自動化される CI/CD の流れを，実際の構築を通して
+理解できた．手作業での配置が不要になることで，ヒューマンエラーを避けつつ短時間で更新を反映できる．
+一方で運用中，デプロイ用ワークフローが 2 本存在して同じサービスへ同時にデプロイし，一方が
+タイムアウトで失敗していた．デプロイ経路は 1 本に保つ必要があるという運用上の注意点も学べた．
+加えて App Service により，静的配信にとどまらない動的なアプリの公開まで体験できた．
+
+\section*{付録}
+\subsection*{A.\ 公開 URL}
+構築したサービスの URL は以下の通りである（いずれも 2026 年 7 月 12 日 時点で稼働確認済み）．
 \begin{quote}\ttfamily\small
 静的サイト：https://orange-stone-0cfe86d00.7.azurestaticapps.net\\
 動的アプリ：https://numata-25g1104-express-1833.azurewebsites.net
 \end{quote}
-※ 静的サイトのドメインには \texttt{.7.} が含まれる．これを省いた URL は 404 になるため注意．
+※ 静的サイトのドメインには \texttt{.7.} が含まれる．これを省いた URL は 404 になるため注意する．
 
-\subsection{関連スクリーンショット}
+\subsection*{B.\ 関連スクリーンショット}
 \noindent
 \begin{minipage}[t]{0.48\linewidth}\centering
   \shotframe{30mm}{【図を貼付】GitHub の Actions タブ\\（デプロイ実行履歴）}\\[1mm]
-  {\small 図\refstepcounter{figure}\thefigure\label{fig:deploy}\ デプロイ画面（GitHub Actions）}
+  {\small 図\refstepcounter{figure}\thefigure\label{fig:deploy}\ デプロイの自動実行（GitHub Actions）}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.48\linewidth}\centering
   \shotframe{30mm}{【図を貼付】VS Code のソース管理，\\または GitHub のコミット差分}\\[1mm]
-  {\small 図\refstepcounter{figure}\thefigure\label{fig:change}\ 変更画面（コミット・差分）}
+  {\small 図\refstepcounter{figure}\thefigure\label{fig:change}\ 変更内容の差分（変更画面）}
 \end{minipage}
 
 \vspace{4mm}
 \noindent
 \begin{minipage}[t]{0.48\linewidth}\centering
   \shotframe{30mm}{【図を貼付】静的サイトの表示\\（見出しが赤字で表示）}\\[1mm]
-  {\small 図\refstepcounter{figure}\thefigure\label{fig:static}\ 静的サイトの表示（現在の URL）}
+  {\small 図\refstepcounter{figure}\thefigure\label{fig:static}\ 公開された静的サイト（現在の URL）}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.48\linewidth}\centering
   \shotframe{30mm}{【図を貼付】動的アプリの表示\\（時刻・カウンタ・フォーム）}\\[1mm]
-  {\small 図\refstepcounter{figure}\thefigure\label{fig:dynamic}\ 動的アプリの表示（App Service）}
+  {\small 図\refstepcounter{figure}\thefigure\label{fig:dynamic}\ 動的 Web アプリ（Azure App Service）}
 \end{minipage}
 
 \end{document}
