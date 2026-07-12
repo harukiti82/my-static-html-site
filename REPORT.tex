@@ -6,21 +6,15 @@
 \usepackage[dvipdfmx,hidelinks]{hyperref}
 \usepackage{pxjahyper}
 \usepackage{url}
-\usepackage{float}
-\usepackage[margin=24mm]{geometry}
-
-% 図まわりの余白を詰める
-\setlength{\textfloatsep}{8pt}
-\setlength{\floatsep}{8pt}
-\setlength{\intextsep}{8pt}
+\usepackage[margin=23mm]{geometry}
 
 % スクリーンショット差し込み用の枠（後で \includegraphics に置換可）
 \newcommand{\shotframe}[2]{%
-  \setlength{\fboxsep}{4pt}%
-  \fbox{\begin{minipage}[c][#1][c]{0.82\linewidth}\centering\small\itshape #2\end{minipage}}}
+  \setlength{\fboxsep}{3pt}%
+  \fbox{\begin{minipage}[c][#1][c]{0.9\linewidth}\centering\footnotesize\itshape #2\end{minipage}}}
 
-\title{CI/CD による静的 Web サイトの自動デプロイ実践レポート}
-\author{学籍番号: \underline{\hspace{28mm}}\\ 氏名: 沼田 陽}
+\title{CI/CD による静的サイトと動的 Web アプリの構築レポート}
+\author{学籍番号: 25G1104\\ 氏名: 沼田 陽}
 \date{2026 年 7 月 12 日}
 
 \begin{document}
@@ -29,89 +23,79 @@
 \section{はじめに}
 本レポートでは，アプリケーションの更新時に自動でデプロイ作業が行われる仕組みである
 CI/CD（Continuous Integration と Continuous Delivery）を取り上げ，手動でのデプロイと自動デプロイを
-比較する．あわせて，今回 GitHub Actions と Azure Static Web Apps を用いて構築・公開した
-静的 Web サイトを題材に，CI/CD を導入することで運用がどのように改善されるかをまとめる．
+比較する．あわせて，今回構築した 2 つのサービス，すなわち GitHub Actions による自動デプロイで
+公開した\textbf{静的 Web サイト}（Azure Static Web Apps）と，サーバー側で処理を行う
+\textbf{動的 Web アプリ}（Azure App Service）を題材に，CI/CD と PaaS の利点をまとめる．
 
 \section{CI/CD 導入前（手動でのデプロイ）}
 CI/CD が用いられていない場合，開発したファイルを開発者自身がサーバーへ配置して，はじめて
-ユーザーが利用できる状態になる．講義の後半で扱った，VS Code から Azure App Service に対して
-「Deploy to Web App\ldots」で ZIP を送信する操作がこれに該当し，変更のたびに人手で同じ配置作業を
-繰り返す必要がある．
-
-\subsection{課題}
+ユーザーが利用できる状態になる．変更のたびに人手で同じ配置作業を繰り返す必要があり，次の課題がある．
 \begin{itemize}
-  \item \textbf{ヒューマンエラーの発生}：手作業でサーバーへ配置するため，操作ミスや手順の抜けが
-        起こりやすい．
-  \item \textbf{手間と時間がかかる}：プログラムを修正するたびに，ローカル（Mac など）から
-        同じ内容を送り直す必要があり，更新回数が増えるほど負担が大きくなる．
+  \item \textbf{ヒューマンエラーの発生}：手作業で配置するため，操作ミスや手順の抜けが起こりやすい．
+  \item \textbf{手間と時間がかかる}：修正のたびにローカルから同じ内容を送り直す必要があり，
+        更新回数が増えるほど負担が大きくなる．
 \end{itemize}
 
 \section{CI/CD 導入後（自動デプロイ）}
 CI/CD を導入すると，コードの変更をリポジトリへ反映するだけで，ビルドから公開までが自動で実行される．
 本課題では，ローカルで編集した HTML / CSS を GitHub の \texttt{main} ブランチへ push するだけで，
 GitHub Actions が起動し，Azure Static Web Apps へファイルが自動でアップロードされる仕組みを構築した．
-おおよそ 1 分で公開 URL に反映され，手動でのアップロードは一切不要となる．
+おおよそ 1 分で公開 URL に反映され，手動でのアップロードは不要となる．これにより，配置作業由来の
+ミスを防げる（\textbf{ヒューマンエラーの回避}）とともに，一度仕組みを作れば以降はサーバー配置を
+意識せず内容の改善に専念できる（\textbf{開発への集中}）．
 
-\subsection{メリット}
-\begin{itemize}
-  \item \textbf{ヒューマンエラーの回避}：配置作業が自動化されるため，手作業に由来するミスを
-        防ぐことができる．
-  \item \textbf{開発に集中できる}：一度パイプラインを用意すれば，以降はサーバーへの配置を
-        意識することなく，コンテンツの改善に専念できる（PaaS のメリットとも共通する）．
-\end{itemize}
+\section{今回構築したサービス}
+\subsection{静的 Web サイト（Azure Static Web Apps）}
+リポジトリ直下に \texttt{index.html} と \texttt{style.css} を置き，\texttt{.github/workflows/} に
+デプロイ用 YAML を配置した．\texttt{main} への push を契機に GitHub Actions が実行され，成功時には
+ログ末尾へ公開 URL が出力される（付録 図\ref{fig:deploy}）．実際に見出しの文字色を変更するなどの
+修正を push しただけで本番サイトへ即座に反映された（付録 図\ref{fig:change}，図\ref{fig:static}）．
+なお運用中，デプロイ用ワークフローが手動作成分と自動生成分の 2 本存在して衝突し，push のたびに一方が
+失敗していたため，経路を 1 本に整理する重要性も学んだ．
 
-\section{今回の構築と動作確認}
-リポジトリの直下に \texttt{index.html} と \texttt{style.css} を置き，
-\texttt{.github/workflows/} にデプロイ用の YAML を配置した．トリガーは \texttt{main} への push と
-Pull Request で，PR の際にはマージ前に内容を確認できるプレビュー環境が自動生成される．
-push のたびに GitHub Actions の実行履歴が記録され，成功時にはログの末尾へ公開 URL が出力される
-（付録 図\ref{fig:deploy}）．実際に，見出しの文字色を水色から赤へ変更するなどの修正をコミットして
-push しただけで，本番サイトへ即座に反映されることを確認した（付録 図\ref{fig:change}，図\ref{fig:url}）．
-
-なお運用の過程で，デプロイ用ワークフローが手動作成分と自動生成分の 2 本存在し，同じ
-Static Web App へ同時にデプロイして衝突するため，push のたびに一方が失敗していることに気づいた．
-デプロイ経路を 1 本に整理することの重要性も，本課題を通じて学べた点である．
+\subsection{動的 Web アプリ（Azure App Service，加点課題）}
+追加要件である「Web App Service（動的サイト）」の構築にも成功した．Node.js のフレームワークである
+\textbf{Express} を用い，単なる静的ページの配信ではなく，\textbf{リクエストのたびにサーバー側で内容を
+生成}するアプリを構築して Azure App Service（PaaS，無料 F プラン）へデプロイした．具体的には，
+\textbf{現在のサーバー時刻の表示}，メモリ上で数える\textbf{アクセスカウンタ}，フォーム入力を
+サーバー側で受け取って応答を返す\textbf{あいさつ機能}を実装した（付録 図\ref{fig:dynamic}）．
+無料枠のため，初回アクセス時はコールドスタートで表示に時間がかかる（重い）仕様となっている．
 
 \section{おわりに}
-本課題を通じて，手動でのデプロイと自動デプロイの双方を理解した．手動でのデプロイは変更のたびに
-人手の配置が必要でミスの温床になりやすいが，GitHub Actions による CI/CD を用いることで，
-push するだけで安全かつ短時間にプログラムを公開できることを，実際の構築を通して確認できた．
+本課題を通じて，手動でのデプロイと自動デプロイの双方を理解した．手作業でのデプロイはミスが
+起こりやすいが，GitHub Actions による CI/CD を用いることで push するだけで安全かつ短時間に公開できる．
+さらに，Azure App Service を用いれば，サーバー管理を意識せずに動的な Web アプリまで公開できることを，
+実際の構築を通して確認できた．
 
 \section{付録}
 \subsection{URL}
-今回構築した静的 Web サイトの公開 URL は以下の通りである（2026 年 7 月 12 日 時点で
-稼働を確認済み，HTTP 200 OK）．
-\begin{quote}\ttfamily
-https://orange-stone-0cfe86d00.7.azurestaticapps.net
+今回構築したサービスの公開 URL は以下の通りである（いずれも 2026 年 7 月 12 日 時点で稼働確認済み）．
+\begin{quote}\ttfamily\small
+静的サイト：https://orange-stone-0cfe86d00.7.azurestaticapps.net\\
+動的アプリ：https://numata-25g1104-express-1833.azurewebsites.net
 \end{quote}
-※ ドメインには \texttt{.7.} が含まれる．これを省いた URL は 404 になるため，上記の完全な URL で
-アクセスすること．
+※ 静的サイトのドメインには \texttt{.7.} が含まれる．これを省いた URL は 404 になるため注意．
 
 \subsection{関連スクリーンショット}
-構築・デプロイにあたるスクリーンショットを図\ref{fig:deploy}〜図\ref{fig:url}に示す．
+\noindent
+\begin{minipage}[t]{0.48\linewidth}\centering
+  \shotframe{30mm}{【図を貼付】GitHub の Actions タブ\\（デプロイ実行履歴）}\\[1mm]
+  {\small 図\refstepcounter{figure}\thefigure\label{fig:deploy}\ デプロイ画面（GitHub Actions）}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}\centering
+  \shotframe{30mm}{【図を貼付】VS Code のソース管理，\\または GitHub のコミット差分}\\[1mm]
+  {\small 図\refstepcounter{figure}\thefigure\label{fig:change}\ 変更画面（コミット・差分）}
+\end{minipage}
 
-\begin{figure}[H]
-  \centering
-  \shotframe{34mm}{【ここに図を貼付】GitHub の Actions タブ，またはデプロイ成功時の画面\\
-    （\url{https://github.com/harukiti82/my-static-html-site/actions}）}
-  \caption{デプロイ成功時の画面（GitHub Actions の実行履歴）}
-  \label{fig:deploy}
-\end{figure}
-
-\begin{figure}[H]
-  \centering
-  \shotframe{34mm}{【ここに図を貼付】VS Code の「ソース管理（変更）」パネル，または
-    GitHub のコミット差分（緑=追加・赤=削除）の画面}
-  \caption{変更の様子（コミット・差分の画面）}
-  \label{fig:change}
-\end{figure}
-
-\begin{figure}[H]
-  \centering
-  \shotframe{34mm}{【ここに図を貼付】上記 URL をブラウザで開き，アドレスバーの URL と
-    ページ表示（見出し「Azure Static Web Apps Demo」）が見える画面}
-  \caption{公開されたサイトの表示（現在の URL）}
-  \label{fig:url}
-\end{figure}
+\vspace{4mm}
+\noindent
+\begin{minipage}[t]{0.48\linewidth}\centering
+  \shotframe{30mm}{【図を貼付】静的サイトの表示\\（見出しが赤字で表示）}\\[1mm]
+  {\small 図\refstepcounter{figure}\thefigure\label{fig:static}\ 静的サイトの表示（現在の URL）}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}\centering
+  \shotframe{30mm}{【図を貼付】動的アプリの表示\\（時刻・カウンタ・フォーム）}\\[1mm]
+  {\small 図\refstepcounter{figure}\thefigure\label{fig:dynamic}\ 動的アプリの表示（App Service）}
+\end{minipage}
 
 \end{document}
