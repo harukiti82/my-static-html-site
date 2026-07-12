@@ -1,125 +1,117 @@
 %% コンパイル: uplatex REPORT.tex を2回 → dvipdfmx REPORT.dvi
 %% （日本語のため pdflatex 不可。Overleaf は Compiler=LaTeX / uplatex 設定）
-\documentclass[uplatex,dvipdfmx,a4paper,10pt]{jsarticle}
+\documentclass[uplatex,dvipdfmx,a4paper,11pt]{jsarticle}
 
-\usepackage{amsmath}
 \usepackage[dvipdfmx]{graphicx}
-\usepackage[dvipdfmx]{xcolor}
 \usepackage[dvipdfmx,hidelinks]{hyperref}
 \usepackage{pxjahyper}
-\usepackage[margin=20mm]{geometry}
-\usepackage{booktabs}
 \usepackage{url}
+\usepackage{float}
+\usepackage[margin=24mm]{geometry}
 
-% タイトル前後の余白を詰める
-\usepackage{titling}
-\setlength{\droptitle}{-18mm}
+% 図まわりの余白を詰める
+\setlength{\textfloatsep}{8pt}
+\setlength{\floatsep}{8pt}
+\setlength{\intextsep}{8pt}
 
-% スクリーンショット貼付欄（高さ指定の枠）
-\newcommand{\shot}[2]{%
-  \begin{center}\setlength{\fboxsep}{5pt}%
-  \fbox{\begin{minipage}[t][#1][c]{0.94\linewidth}\centering\small\itshape #2\end{minipage}}%
-  \end{center}}
+% スクリーンショット差し込み用の枠（後で \includegraphics に置換可）
+\newcommand{\shotframe}[2]{%
+  \setlength{\fboxsep}{4pt}%
+  \fbox{\begin{minipage}[c][#1][c]{0.82\linewidth}\centering\small\itshape #2\end{minipage}}}
 
-% 節見出しの余白を圧縮
-\usepackage{titlesec}
-\titlespacing*{\section}{0pt}{6pt}{2pt}
-\titlespacing*{\subsection}{0pt}{4pt}{2pt}
-
-\title{\vspace{-6mm}CI/CD レポート\\[2pt]
-  \large Azure Static Web Apps による静的サイトの継続的デプロイ}
-\author{沼田 陽（学生番号: \underline{\hspace{25mm}}）}
-\date{2026年7月12日}
+\title{CI/CD による静的 Web サイトの自動デプロイ実践レポート}
+\author{学籍番号: \underline{\hspace{28mm}}\\ 氏名: 沼田 陽}
+\date{2026 年 7 月 12 日}
 
 \begin{document}
 \maketitle
-\vspace{-8mm}
 
-\section{CI/CD とは}
-\textbf{CI/CD}（継続的インテグレーション／継続的デリバリー）とは、ソースコードの変更を
-\textbf{自動でビルド・テスト・デプロイ}する仕組みである。本課題では \texttt{git push} を契機に
-\textbf{GitHub Actions} が自動起動し、静的サイトを \textbf{Azure Static Web Apps} へ公開する。
-手作業の FTP アップロードが不要になり、ヒューマンエラーを防げる点が利点である。
+\section{はじめに}
+本レポートでは，アプリケーションの更新時に自動でデプロイ作業が行われる仕組みである
+CI/CD（Continuous Integration と Continuous Delivery）を取り上げ，手動でのデプロイと自動デプロイを
+比較する．あわせて，今回 GitHub Actions と Azure Static Web Apps を用いて構築・公開した
+静的 Web サイトを題材に，CI/CD を導入することで運用がどのように改善されるかをまとめる．
 
-\begin{center}
-\small
-\texttt{[ローカルPC]} $\xrightarrow{\text{git push}}$ \texttt{[GitHub(main)]}
-$\xrightarrow{\text{Actions}}$ \texttt{[Azure Static Web Apps]}
-$\xrightarrow{\text{HTTPS}}$ \texttt{[利用者]}
-\end{center}
+\section{CI/CD 導入前（手動でのデプロイ）}
+CI/CD が用いられていない場合，開発したファイルを開発者自身がサーバーへ配置して，はじめて
+ユーザーが利用できる状態になる．講義の後半で扱った，VS Code から Azure App Service に対して
+「Deploy to Web App\ldots」で ZIP を送信する操作がこれに該当し，変更のたびに人手で同じ配置作業を
+繰り返す必要がある．
 
-\noindent\textbf{使用技術:}\ GitHub / GitHub Actions / \texttt{Azure/static-web-apps-deploy@v1} /
-Azure Static Web Apps（無料プラン）／静的 HTML + CSS
+\subsection{課題}
+\begin{itemize}
+  \item \textbf{ヒューマンエラーの発生}：手作業でサーバーへ配置するため，操作ミスや手順の抜けが
+        起こりやすい．
+  \item \textbf{手間と時間がかかる}：プログラムを修正するたびに，ローカル（Mac など）から
+        同じ内容を送り直す必要があり，更新回数が増えるほど負担が大きくなる．
+\end{itemize}
 
-\section{ディプロイ画面（GitHub Actions）}
-\texttt{main} へ push するたびに GitHub の \textbf{Actions} タブでビルド・デプロイが自動実行される。
-以下は実際の実行履歴（\texttt{gh run list} で取得）で、成功時のログ末尾に公開URLが出力される。
+\section{CI/CD 導入後（自動デプロイ）}
+CI/CD を導入すると，コードの変更をリポジトリへ反映するだけで，ビルドから公開までが自動で実行される．
+本課題では，ローカルで編集した HTML / CSS を GitHub の \texttt{main} ブランチへ push するだけで，
+GitHub Actions が起動し，Azure Static Web Apps へファイルが自動でアップロードされる仕組みを構築した．
+おおよそ 1 分で公開 URL に反映され，手動でのアップロードは一切不要となる．
 
-\begin{center}\small
-\begin{tabular}{clcc}
-\toprule
-状態 & ワークフロー & トリガー & 実行日時(UTC) \\
-\midrule
-成功 & Azure Static Web Apps CI/CD & push & 2026-07-09 16:38 \\
-成功 & Azure Static Web Apps CI/CD & push & 2026-07-08 01:41 \\
-成功 & Azure Static Web Apps CI/CD & push & 2026-07-08 01:13 \\
-\bottomrule
-\end{tabular}
-\end{center}
-\vspace{-1mm}
-\begin{quote}\small\ttfamily
-Deployment Complete :) \\
-Visit your site at: https://orange-stone-0cfe86d00.7.azurestaticapps.net
+\subsection{メリット}
+\begin{itemize}
+  \item \textbf{ヒューマンエラーの回避}：配置作業が自動化されるため，手作業に由来するミスを
+        防ぐことができる．
+  \item \textbf{開発に集中できる}：一度パイプラインを用意すれば，以降はサーバーへの配置を
+        意識することなく，コンテンツの改善に専念できる（PaaS のメリットとも共通する）．
+\end{itemize}
+
+\section{今回の構築と動作確認}
+リポジトリの直下に \texttt{index.html} と \texttt{style.css} を置き，
+\texttt{.github/workflows/} にデプロイ用の YAML を配置した．トリガーは \texttt{main} への push と
+Pull Request で，PR の際にはマージ前に内容を確認できるプレビュー環境が自動生成される．
+push のたびに GitHub Actions の実行履歴が記録され，成功時にはログの末尾へ公開 URL が出力される
+（付録 図\ref{fig:deploy}）．実際に，見出しの文字色を水色から赤へ変更するなどの修正をコミットして
+push しただけで，本番サイトへ即座に反映されることを確認した（付録 図\ref{fig:change}，図\ref{fig:url}）．
+
+なお運用の過程で，デプロイ用ワークフローが手動作成分と自動生成分の 2 本存在し，同じ
+Static Web App へ同時にデプロイして衝突するため，push のたびに一方が失敗していることに気づいた．
+デプロイ経路を 1 本に整理することの重要性も，本課題を通じて学べた点である．
+
+\section{おわりに}
+本課題を通じて，手動でのデプロイと自動デプロイの双方を理解した．手動でのデプロイは変更のたびに
+人手の配置が必要でミスの温床になりやすいが，GitHub Actions による CI/CD を用いることで，
+push するだけで安全かつ短時間にプログラムを公開できることを，実際の構築を通して確認できた．
+
+\section{付録}
+\subsection{URL}
+今回構築した静的 Web サイトの公開 URL は以下の通りである（2026 年 7 月 12 日 時点で
+稼働を確認済み，HTTP 200 OK）．
+\begin{quote}\ttfamily
+https://orange-stone-0cfe86d00.7.azurestaticapps.net
 \end{quote}
+※ ドメインには \texttt{.7.} が含まれる．これを省いた URL は 404 になるため，上記の完全な URL で
+アクセスすること．
 
-\shot{28mm}{【スクリーンショット貼付欄(1)：ディプロイ画面】\\
-GitHub リポジトリの \textbf{Actions} タブ（デプロイ実行履歴が並ぶ画面）を貼り付ける。\\
-\url{https://github.com/harukiti82/my-static-html-site/actions}}
+\subsection{関連スクリーンショット}
+構築・デプロイにあたるスクリーンショットを図\ref{fig:deploy}〜図\ref{fig:url}に示す．
 
-\section{変更画面（コミット履歴・差分）}
-「いつ・何を変更したか」は Git のコミット履歴で追跡できる。例として文字色を変更した差分を示す。
+\begin{figure}[H]
+  \centering
+  \shotframe{34mm}{【ここに図を貼付】GitHub の Actions タブ，またはデプロイ成功時の画面\\
+    （\url{https://github.com/harukiti82/my-static-html-site/actions}）}
+  \caption{デプロイ成功時の画面（GitHub Actions の実行履歴）}
+  \label{fig:deploy}
+\end{figure}
 
-\begin{minipage}[t]{0.46\linewidth}\small
-\textbf{コミット履歴（\texttt{git log}）}
-\begin{quote}\footnotesize\ttfamily
-7625825 沼田がしていますを追加\\
-80a8333 沼田を追加\\
-70c1af5 赤色に変更\\
-f94d58f テキストカラーを変更
-\end{quote}
-\end{minipage}\hfill
-\begin{minipage}[t]{0.50\linewidth}\small
-\textbf{差分（70c1af5「赤色に変更」）}
-\begin{quote}\footnotesize\ttfamily
- h1 \{\\
-- color: \#00ffc3d4;\ (水色)\\
-+ color: \#ff1d1dd4;\ (赤色)\\
- \}
-\end{quote}
-\end{minipage}
+\begin{figure}[H]
+  \centering
+  \shotframe{34mm}{【ここに図を貼付】VS Code の「ソース管理（変更）」パネル，または
+    GitHub のコミット差分（緑=追加・赤=削除）の画面}
+  \caption{変更の様子（コミット・差分の画面）}
+  \label{fig:change}
+\end{figure}
 
-\shot{28mm}{【スクリーンショット貼付欄(2)：変更画面】\\
-VS Code の「ソース管理（変更）」パネル、または GitHub のコミット差分
-（緑=追加・赤=削除）の画面を貼り付ける。}
-
-\section{現在の公開URL}
-\textbf{公開URL:} \url{https://orange-stone-0cfe86d00.7.azurestaticapps.net}\\
-2026年7月12日 時点で稼働を確認済み（HTTP \texttt{200 OK}）。表示内容はリポジトリの
-\texttt{index.html} と一致し、見出し「Azure Static Web Apps Demo」が赤字で表示される。
-
-\shot{30mm}{【スクリーンショット貼付欄(3)：現在のURL】\\
-上記URLをブラウザで開き、アドレスバーのURLとページ表示が見える画面を貼り付ける。}
-
-\begin{quote}\small
-\textbf{注意:}\ ドメインには \texttt{.7.} が含まれる。これを省いた
-\texttt{orange-stone-0cfe86d00.azurestaticapps.net} は 404 になるため、完全なURLでアクセスする。
-\end{quote}
-
-\section{考察 --- 運用で気づいた課題}
-運用中、\textbf{push のたびにワークフローが1回失敗}していた。原因はデプロイ用ワークフローが
-\texttt{azure-static-web-apps.yaml}（手動作成）と自動生成版の\textbf{2本}存在し、同じ Static Web App へ
-同時デプロイして衝突し、片方が \texttt{Upload Timed Out} でタイムアウトするためである。
-不要な旧ファイルを削除して\textbf{デプロイ経路を1本化}すれば安定する。CI/CD では
-「1つの成果物へのデプロイ経路は1本に保つ」ことが重要だと学んだ。
+\begin{figure}[H]
+  \centering
+  \shotframe{34mm}{【ここに図を貼付】上記 URL をブラウザで開き，アドレスバーの URL と
+    ページ表示（見出し「Azure Static Web Apps Demo」）が見える画面}
+  \caption{公開されたサイトの表示（現在の URL）}
+  \label{fig:url}
+\end{figure}
 
 \end{document}
